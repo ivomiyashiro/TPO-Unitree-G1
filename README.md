@@ -40,6 +40,26 @@ Por línea de comandos, desde `VigiaApp/`:
 
 Los otros escenarios (Tabla XVI del documento): batería en 19 %, visitante rezagado, inclinación de 20° y orden rechazada (código 3104).
 
+### Con el emulador de la cátedra (G1 HMI Lab v0.7)
+
+La app tiene **dos fuentes de datos** y se elige en la pantalla de selección de robot:
+
+| Fuente | De dónde salen los datos | Cuándo usarla |
+|---|---|---|
+| **Simulador interno** (por defecto) | Todo lo simula la app: recorrido, batería, IMU, conexión, LED, voz y gestos. | Sin red, para la demo y las pruebas. |
+| **Emulador de la cátedra** | Batería (BMS), inclinación (IMU), conexión, LED, volumen, voz y gestos vienen del G1 HMI Lab por REST + WebSocket. El recorrido (caminar, P1–P4, cruce) lo sigue simulando la app, porque el emulador no implementa locomoción. | Para probar los escenarios con la consola docente. |
+
+1. Levantar el emulador en la computadora (Python 3.11+):
+   ```bash
+   cd sdk_emulator
+   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+   .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+   ```
+2. En la app: **Fuente de datos → Emulador de la cátedra**. Desde el emulador de Android la dirección es `http://10.0.2.2:8000`; en una tablet real, la IP de la computadora en la red local.
+3. Desde la consola docente (`http://localhost:8000/simulator`) bajar la batería, inclinar la IMU, desconectar el G1 o hacer fallar la próxima orden: la app lo refleja con las mismas alertas y estados. Los botones de **Control → Escenarios de prueba** llaman a esa misma consola.
+
+El LED y los mensajes de voz que decide el recorrido se envían también al emulador, así su HMI y su registro de eventos muestran lo mismo que la app.
+
 ---
 
 ## 🏗️ Arquitectura
@@ -58,7 +78,7 @@ UI (Compose) ──► VigiaViewModel ──► Casos de uso ──► Repositor
 |---|---|---|
 | Presentación | `ui/` | Pantallas Compose, `AppShell` (navegación lateral/inferior, barra de estado, avisos globales), `VigiaViewModel` con un único `StateFlow`. |
 | Dominio | `domain/` | Modelos (telemetría, órdenes, alertas, misión), interfaces `RobotRepository` / `HistoryRepository`, reglas de habilitación de órdenes (`CommandRules`), antigüedad del dato (`DataFreshness`) y casos de uso (`SendCommandUseCase`, `RecordRobotEventsUseCase`). |
-| Datos | `data/` | `SimulationRobotRepository` (recorrido, gestos, voz, LED, batería, IMU y escenarios) y `RoomHistoryRepository` (escoltas y eventos en SQLite). |
+| Datos | `data/` | `SimulationRobotRepository` (recorrido, gestos, voz, LED, batería, IMU y escenarios), `EmulatorRobotRepository` (Retrofit + WebSocket contra el G1 HMI Lab), `RobotGateway` (elige la fuente) y `RoomHistoryRepository` (escoltas y eventos en SQLite). |
 | DI | `di/AppContainer` | Inyección manual. Vive en `VigiaApplication`, así el simulador y el historial siguen funcionando si la Activity se recrea. |
 
 ### Decisiones relevantes
@@ -80,6 +100,7 @@ UI (Compose) ──► VigiaViewModel ──► Casos de uso ──► Repositor
 | ViewModel + StateFlow + Coroutines | Estado único de pantalla; telemetría cada 1 s y antigüedad del dato. |
 | Navigation Compose | Panel, Telemetría, Escolta, Alertas, Historial y Control. |
 | Room | Historial local de escoltas, órdenes y alertas. |
+| Retrofit + OkHttp (WebSocket) | Comunicación con el emulador de la cátedra: órdenes por REST y telemetría por WebSocket (1 muestra/s). |
 | JUnit + kotlinx-coroutines-test | Reglas de órdenes, tiempo de espera y simulador con tiempo virtual. |
 
 ---
@@ -95,11 +116,13 @@ UI (Compose) ──► VigiaViewModel ──► Casos de uso ──► Repositor
 - Historial con filtros (Todo / Escoltas / Órdenes / Alertas) y detalle de cada escolta.
 - Control: órdenes de misión con su condición de habilitación, gestos, mensajes de voz, volumen, LED y escenarios de prueba.
 - Desconexión: aviso sobre cualquier pantalla, datos en gris, órdenes deshabilitadas y aviso al reconectar si una orden quedó sin respuesta.
+- Conexión opcional al emulador de la cátedra (segunda fuente de datos), con reconexión automática del WebSocket.
 - Diseño adaptable: tablet (navegación lateral, dos columnas) y teléfono (navegación inferior, una columna).
 
 ## ⚠️ Limitaciones conocidas
 
-- **No hay conexión al emulador de la cátedra (G1 HMI Lab).** Falta la segunda implementación de `RobotRepository` (Retrofit + WebSocket); la selección de robot lo muestra como *no disponible*.
+- Con el emulador de la cátedra, el recorrido sigue siendo simulado por la app: el G1 HMI Lab no implementa locomoción, misiones ni posición.
+- Si la consola docente usa `SIMULATOR_TOKEN`, los botones de escenarios de la app no lo envían: en ese caso usar la consola docente directamente.
 - La versión mobile usa los mismos componentes en una columna, pero no replica pantalla por pantalla el diseño mobile de Figma.
 - *Detener* es un comando de software simulado: **no reemplaza una parada de emergencia física**.
 - El operador es fijo (`guardia-turno-1`); no hay inicio de sesión.

@@ -15,6 +15,9 @@ import com.uade.vigia.domain.model.MissionSummary
 import com.uade.vigia.domain.model.RobotCommand
 import com.uade.vigia.domain.model.RobotInfo
 import com.uade.vigia.domain.model.Telemetry
+import com.uade.vigia.domain.repository.DataSource
+import com.uade.vigia.domain.repository.DataSourceKind
+import com.uade.vigia.domain.repository.DataSourceSelector
 import com.uade.vigia.domain.repository.HistoryRepository
 import com.uade.vigia.domain.repository.RobotRepository
 import com.uade.vigia.domain.repository.ScenarioControls
@@ -65,7 +68,11 @@ data class VigiaUiState(
     val selectedHistoryId: String? = null,
     val selectedHistoryEvents: List<HistoryEvent> = emptyList(),
     val form: NewEscortForm = NewEscortForm(),
-    val message: String? = null
+    val message: String? = null,
+    val dataSource: DataSource = DataSource(DataSourceKind.SIMULATOR, ""),
+    val emulatorUrlDraft: String = "",
+    val connectingSource: Boolean = false,
+    val sourceError: String? = null
 ) {
     val online: Boolean get() = freshness != Freshness.OFFLINE
     fun availability(type: CommandType): Availability {
@@ -82,7 +89,8 @@ class VigiaViewModel(
     private val robot: RobotRepository,
     private val scenarios: ScenarioControls,
     private val history: HistoryRepository,
-    private val sendCommand: SendCommandUseCase
+    private val sendCommand: SendCommandUseCase,
+    private val sources: DataSourceSelector
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VigiaUiState(robots = robot.robots))
@@ -96,8 +104,16 @@ class VigiaViewModel(
         viewModelScope.launch {
             combine(robot.telemetry, ticker) { t, _ -> t }.collect { t ->
                 val age = Duration.between(t.timestamp, Instant.now()).seconds.coerceAtLeast(0)
-                val freshness = DataFreshness.classify(age)
+                // Lectura marcada como no válida por el robot (por ejemplo, el emulador desconectado) = sin conexión.
+                val freshness = if (!t.valid) Freshness.OFFLINE else DataFreshness.classify(age)
                 _state.update { it.copy(telemetry = t, ageSeconds = age, freshness = freshness) }
+            }
+        }
+        viewModelScope.launch {
+            sources.source.collect { src ->
+                _state.update {
+                    it.copy(dataSource = src, emulatorUrlDraft = it.emulatorUrlDraft.ifBlank { src.emulatorUrl }, robots = robot.robots)
+                }
             }
         }
         viewModelScope.launch {
@@ -122,6 +138,29 @@ class VigiaViewModel(
 
     fun selectRobot(robotInfo: RobotInfo) {
         _state.update { it.copy(selectedRobot = robotInfo) }
+    }
+
+    fun useSimulator() {
+        sources.useSimulator()
+        _state.update { it.copy(sourceError = null) }
+    }
+
+    fun updateEmulatorUrl(url: String) = _state.update { it.copy(emulatorUrlDraft = url, sourceError = null) }
+
+    fun useEmulator() {
+        val url = _state.value.emulatorUrlDraft
+        _state.update { it.copy(connectingSource = true, sourceError = null) }
+        viewModelScope.launch {
+            val result = sources.useEmulator(url)
+            _state.update {
+                it.copy(
+                    connectingSource = false,
+                    sourceError = result.exceptionOrNull()?.let { e ->
+                        "No responde el emulador en $url (${e.javaClass.simpleName}). ¿Está corriendo uvicorn?"
+                    }
+                )
+            }
+        }
     }
 
     fun disconnectFromRobot() {
@@ -238,7 +277,7 @@ class VigiaViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as VigiaApplication
                 val c = app.container
-                VigiaViewModel(c.robotRepository, c.scenarioControls, c.historyRepository, c.sendCommand)
+                VigiaViewModel(c.robotRepository, c.scenarioControls, c.historyRepository, c.sendCommand, c.dataSourceSelector)
             }
         }
     }

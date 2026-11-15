@@ -37,6 +37,7 @@ import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.util.UUID
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /**
@@ -77,6 +78,11 @@ class SimulationRobotRepository(
     private var mission: Mission? = null
     private var checkpoint = Checkpoint.BASE
     private var soc = 85.0
+    private var soh = 98
+    /** Batería e IMU vienen del emulador de la cátedra en lugar de generarse acá. */
+    private var externalSensors = false
+    /** Conexión controlada desde afuera (emulador): mientras es falsa el robot no publica ni responde. */
+    private var externalLinkDown = false
     private var led = LedColor.GREEN
     private var volume = 60
     private var lastTts: String? = null
@@ -120,6 +126,29 @@ class SimulationRobotRepository(
             publish()
             response
         }
+    }
+
+    // -------------------------------------------------- modo emulador de la cátedra
+
+    /** Usa la batería (SOC/SOH) y la inclinación (roll/pitch) que informa el emulador. */
+    fun applyExternalSensors(soc: Double, soh: Int, rollDeg: Float, pitchDeg: Float) = scenario {
+        externalSensors = true
+        this.soc = soc
+        this.soh = soh
+        roll = rollDeg
+        pitch = pitchDeg
+    }
+
+    /** Refleja la conexión del G1 del emulador. */
+    fun setExternalLink(up: Boolean) = scenario {
+        if (externalLinkDown && up) milestone("Conexión recuperada", EventTone.OK)
+        externalLinkDown = !up
+    }
+
+    /** Vuelve a generar batería, inclinación y conexión internamente. */
+    fun useInternalSensors() = scenario {
+        externalSensors = false
+        externalLinkDown = false
     }
 
     override fun reconnect() {
@@ -486,7 +515,7 @@ class SimulationRobotRepository(
     }
 
     private fun updateBattery() {
-        soc = when {
+        if (!externalSensors) soc = when {
             phase == Phase.IDLE -> (soc + CHARGE_PER_TICK).coerceAtMost(100.0)
             phase in walkingPhases -> soc - DRAIN_WALKING_PER_TICK
             else -> soc - DRAIN_IDLE_PER_TICK
@@ -519,13 +548,27 @@ class SimulationRobotRepository(
     }
 
     private fun updateTilt() {
+        if (externalSensors) {
+            if (abs(roll) > Thresholds.TILT_CRITICAL_DEG && !tiltAlerted) {
+                tiltAlerted = true
+                hold(Phase.STOPPED, LedColor.RED)
+                raiseAlert(
+                    AlertType.TILT, AlertSeverity.CRITICAL,
+                    "Inclinación anormal · ${kotlin.math.abs(roll).roundToInt()}°",
+                    "El robot se detuvo. Despejá el área y avisá a mantenimiento antes de reanudar."
+                )
+            } else if (abs(roll) <= Thresholds.TILT_CRITICAL_DEG) {
+                tiltAlerted = false
+            }
+            return
+        }
         if (tiltTicks > 0) {
             if (abs(roll) > Thresholds.TILT_CRITICAL_DEG && !tiltAlerted) {
                 tiltAlerted = true
                 hold(Phase.STOPPED, LedColor.RED)
                 raiseAlert(
                     AlertType.TILT, AlertSeverity.CRITICAL,
-                    "Inclinación anormal · ${roll.toInt()}°",
+                    "Inclinación anormal · ${kotlin.math.abs(roll).roundToInt()}°",
                     "El robot se detuvo. Despejá el área y avisá a mantenimiento antes de reanudar."
                 )
             }
@@ -572,7 +615,7 @@ class SimulationRobotRepository(
         }
     }
 
-    private fun isLinkDown(): Boolean = linkDownUntil?.let { clock().isBefore(it) } == true
+    private fun isLinkDown(): Boolean = externalLinkDown || linkDownUntil?.let { clock().isBefore(it) } == true
 
     private fun robotState(): RobotState = when (phase) {
         Phase.IDLE -> RobotState.IN_BASE
@@ -600,7 +643,7 @@ class SimulationRobotRepository(
             link = com.uade.vigia.domain.model.LinkStatus.ONLINE,
             latencyMs = 38 + random.nextInt(0, 18),
             soc = soc,
-            soh = 98,
+            soh = soh,
             robotState = robotState(),
             busyAction = busy,
             mission = mission?.let { m ->

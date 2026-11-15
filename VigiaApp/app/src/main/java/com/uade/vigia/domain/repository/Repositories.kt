@@ -51,3 +51,19 @@ interface HistoryRepository {
     suspend fun log(missionId: String?, at: Instant, kind: EventKind, text: String, tone: EventTone)
     suspend fun logCommand(record: CommandRecord)
 }
+
+/** De dónde salen los datos del robot. La UI y los casos de uso no cambian entre una y otra. */
+enum class DataSourceKind(val label: String) {
+    SIMULATOR("Simulador interno"),
+    EMULATOR("Emulador de la cátedra")
+}
+
+data class DataSource(val kind: DataSourceKind, val emulatorUrl: String)
+
+interface DataSourceSelector {
+    val source: StateFlow<DataSource>
+    fun useSimulator()
+
+    /** Prueba que el emulador responda en [url] y, si responde, pasa a usarlo. */
+    suspend fun useEmulator(url: String): Result<Unit>
+}

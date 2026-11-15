@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
                 val vm: VigiaViewModel = viewModel(factory = VigiaViewModel.Factory)
                 val state by vm.state.collectAsStateWithLifecycle()
                 if (state.selectedRobot == null) {
-                    RobotSelectionScreen(state, onConnect = vm::selectRobot)
+                    RobotSelectionScreen(state, vm, onConnect = vm::selectRobot)
                 } else {
                     BackHandler(onBack = vm::disconnectFromRobot)
                     AppShell(state, vm)

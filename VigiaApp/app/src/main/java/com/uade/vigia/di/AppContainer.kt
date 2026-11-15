@@ -1,9 +1,11 @@
 package com.uade.vigia.di
 
 import android.content.Context
+import com.uade.vigia.data.RobotGateway
 import com.uade.vigia.data.local.RoomHistoryRepository
 import com.uade.vigia.data.local.VigiaDatabase
 import com.uade.vigia.data.simulation.SimulationRobotRepository
+import com.uade.vigia.domain.repository.DataSourceSelector
 import com.uade.vigia.domain.repository.HistoryRepository
 import com.uade.vigia.domain.repository.RobotRepository
 import com.uade.vigia.domain.repository.ScenarioControls
@@ -23,9 +25,11 @@ class AppContainer(context: Context) {
 
     private val database = VigiaDatabase.create(context)
     private val simulator = SimulationRobotRepository(appScope)
+    private val gateway = RobotGateway(simulator, appScope)
 
-    val robotRepository: RobotRepository = simulator
-    val scenarioControls: ScenarioControls = simulator
+    val robotRepository: RobotRepository = gateway
+    val scenarioControls: ScenarioControls = gateway
+    val dataSourceSelector: DataSourceSelector = gateway
     val historyRepository: HistoryRepository = RoomHistoryRepository(database.missionDao())
     val sendCommand = SendCommandUseCase(robotRepository, historyRepository)
 

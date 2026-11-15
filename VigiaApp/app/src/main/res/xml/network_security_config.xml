@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  El emulador de la cátedra (G1 HMI Lab) se sirve por HTTP sin TLS en la red del laboratorio.
+  Se permite tráfico sin cifrar solo para eso; la app no se comunica con ningún otro servidor.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

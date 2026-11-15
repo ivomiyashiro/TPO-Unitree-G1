@@ -91,7 +91,7 @@ fun ControlScreen(state: VigiaUiState, vm: VigiaViewModel, wide: Boolean, onChan
                         "Detener es un comando de software simulado: no reemplaza la parada de emergencia física."
                 )
             }
-            ScenariosCard(vm)
+            ScenariosCard(state, vm)
         },
         side = {
             VigiaCard(spacing = 10) {
@@ -223,10 +223,14 @@ private fun LedCard(state: VigiaUiState, vm: VigiaViewModel) {
 /** Escenarios de prueba del simulador interno (sección 12): reemplazan a la consola docente del emulador. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ScenariosCard(vm: VigiaViewModel) {
+private fun ScenariosCard(state: VigiaUiState, vm: VigiaViewModel) {
+    val emulator = state.dataSource.kind == com.uade.vigia.domain.repository.DataSourceKind.EMULATOR
     VigiaCard(spacing = 10, background = Tile) {
-        CardHeader("Escenarios de prueba") { StatusChip("Simulador interno", Tone.INFO) }
-        Hint("Provocan las situaciones de la Tabla XVI del documento. Solo existen en el simulador: con un robot real no se muestran.")
+        CardHeader("Escenarios de prueba") { StatusChip(if (emulator) "Emulador · consola docente" else "Simulador interno", Tone.INFO) }
+        Hint(
+            if (emulator) "Provocan las situaciones de la Tabla XVI usando la consola docente del emulador (/api/simulator). El visitante rezagado lo sigue simulando la app."
+            else "Provocan las situaciones de la Tabla XVI del documento. Solo existen en el simulador: con un robot real no se muestran."
+        )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             VigiaButton("Batería en 19 %", vm::scenarioLowBattery)
             VigiaButton("Visitante rezagado", vm::scenarioVisitorLagging)

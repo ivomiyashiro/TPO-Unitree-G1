@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Solo para conectarse al emulador de la cátedra (G1 HMI Lab) en la red local. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".VigiaApplication"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="true"
         android:icon="@android:drawable/sym_def_app_icon"
         android:label="@string/app_name"

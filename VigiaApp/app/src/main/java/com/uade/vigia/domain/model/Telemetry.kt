@@ -75,7 +75,8 @@ enum class LedColor(val label: String, val meaning: String, val hint: String) {
 
 enum class BusyAction(val label: String) {
     GREETING("Saludando"),
-    HANDSHAKE("Dando la mano")
+    HANDSHAKE("Dando la mano"),
+    OTHER_GESTURE("Haciendo un gesto")
 }
 
 data class Mission(

@@ -27,7 +27,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.uade.vigia.domain.model.RobotInfo
+import com.uade.vigia.domain.repository.DataSourceKind
 import com.uade.vigia.ui.VigiaUiState
+import com.uade.vigia.ui.VigiaViewModel
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import com.uade.vigia.ui.theme.Tile
 import com.uade.vigia.ui.batteryTone
 import com.uade.vigia.ui.components.ButtonKind
 import com.uade.vigia.ui.components.Hint
@@ -45,7 +52,7 @@ import com.uade.vigia.ui.theme.Surface
 /** Selección de robot (T01). Solo se puede conectar a un robot en línea. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun RobotSelectionScreen(state: VigiaUiState, onConnect: (RobotInfo) -> Unit) {
+fun RobotSelectionScreen(state: VigiaUiState, vm: VigiaViewModel, onConnect: (RobotInfo) -> Unit) {
     Box(Modifier.fillMaxSize().background(Canvas).safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -61,11 +68,7 @@ fun RobotSelectionScreen(state: VigiaUiState, onConnect: (RobotInfo) -> Unit) {
                 }
             }
             Text("Elegí el robot a operar", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-                Text("Fuente de datos:", color = Muted, fontSize = 13.sp)
-                StatusChip("Simulador interno", Tone.INFO)
-                StatusChip("Emulador de la cátedra · no disponible", Tone.NEUTRAL)
-            }
+            DataSourcePicker(state, vm)
             state.robots.forEach { robot -> RobotCard(robot, state, onConnect) }
             Hint("Solo se puede conectar a un robot en línea. La conexión no le da órdenes al robot: es solo para supervisarlo.")
         }
@@ -106,5 +109,50 @@ private fun RobotCard(robot: RobotInfo, state: VigiaUiState, onConnect: (RobotIn
             kind = ButtonKind.PRIMARY,
             enabled = robot.available
         )
+    }
+}
+
+/**
+ * Fuente de datos: el simulador interno (sin red) o el emulador de la cátedra (G1 HMI Lab).
+ * La app es la misma; solo cambia de dónde salen batería, inclinación, conexión, LED, voz y gestos.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DataSourcePicker(state: VigiaUiState, vm: VigiaViewModel) {
+    val kind = state.dataSource.kind
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Text("Fuente de datos:", color = Muted, fontSize = 13.sp)
+            DataSourceKind.entries.forEach { k ->
+                val selected = k == kind
+                Box(
+                    Modifier.clip(RoundedCornerShape(14.dp)).clickable(role = Role.RadioButton) {
+                        if (k == DataSourceKind.SIMULATOR) vm.useSimulator() else vm.useEmulator()
+                    }
+                ) { StatusChip(if (selected) k.label else "${k.label}", if (selected) Tone.INFO else Tone.NEUTRAL) }
+            }
+        }
+        if (kind == DataSourceKind.EMULATOR || state.sourceError != null || state.connectingSource) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(Tile)
+                        .border(1.dp, Border, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 12.dp)
+                ) {
+                    BasicTextField(
+                        value = state.emulatorUrlDraft,
+                        onValueChange = vm::updateEmulatorUrl,
+                        singleLine = true,
+                        textStyle = TextStyle(color = Ink, fontSize = 14.sp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                VigiaButton(if (state.connectingSource) "Probando…" else "Conectar al emulador", vm::useEmulator, Modifier.width(200.dp), enabled = !state.connectingSource)
+            }
+            when {
+                state.sourceError != null -> Hint(state.sourceError, color = Tone.ERROR.fg)
+                kind == DataSourceKind.EMULATOR -> Hint("Conectado a ${state.dataSource.emulatorUrl}. Batería, inclinación, conexión, LED, voz y gestos vienen del emulador; el recorrido lo simula la app.")
+                else -> Hint("Desde el emulador de Android, 10.0.2.2 es tu computadora. En una tablet real, usá la IP de la computadora en la red local.")
+            }
+        }
     }
 }
