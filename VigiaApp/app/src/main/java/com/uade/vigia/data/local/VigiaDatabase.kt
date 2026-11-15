@@ -5,24 +5,15 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [MissionEntity::class, EventEntity::class], version = 1, exportSchema = false)
+@Database(entities = [MissionEntity::class, EventEntity::class], version = 2, exportSchema = false)
 abstract class VigiaDatabase : RoomDatabase() {
     abstract fun missionDao(): MissionDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: VigiaDatabase? = null
-
-        fun getDatabase(context: Context): VigiaDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    VigiaDatabase::class.java,
-                    "vigia_database"
-                ).build()
-                INSTANCE = instance
-                instance
-            }
-        }
+        fun create(context: Context): VigiaDatabase =
+            Room.databaseBuilder(context.applicationContext, VigiaDatabase::class.java, "vigia_database")
+                // La versión 1 era un prototipo sin datos reales: se recrea la base al actualizar.
+                .fallbackToDestructiveMigration()
+                .build()
     }
 }

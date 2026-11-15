@@ -1,39 +1,47 @@
 package com.uade.vigia.data.local
 
-import androidx.room.*
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
 
+/** Una escolta. No guarda datos personales del visitante, solo una etiqueta (Riesgo 5). */
 @Entity(tableName = "missions")
 data class MissionEntity(
     @PrimaryKey val id: String,
-    val status: String, // EN_CURSO, COMPLETADA, CANCELADA, ABORTADA
-    val startTimestamp: Long,
-    val endTimestamp: Long? = null,
-    val durationFormatted: String = "",
-    val totalDistanceMeters: Int = 0
+    val visitor: String,
+    val destination: String,
+    val status: String,
+    val startedAt: Long,
+    val endedAt: Long? = null,
+    val distanceM: Float = 0f
 )
 
-@Entity(
-    tableName = "mission_events",
-    foreignKeys = [ForeignKey(
-        entity = MissionEntity::class,
-        parentColumns = ["id"],
-        childColumns = ["missionId"],
-        onDelete = ForeignKey.CASCADE
-    )],
-    indices = [Index("missionId")]
-)
+/**
+ * Evento del historial: hito de la escolta, orden enviada o alerta.
+ * [missionId] es nulo para órdenes dadas fuera de una escolta (por ejemplo un saludo en la base).
+ */
+@Entity(tableName = "events", indices = [Index("missionId")])
 data class EventEntity(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val missionId: String,
-    val timestamp: Long,
-    val description: String
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val missionId: String?,
+    val at: Long,
+    val kind: String,
+    val text: String,
+    val tone: String,
+    @ColumnInfo(defaultValue = "0") val rejected: Boolean = false
 )
 
-data class MissionWithEvents(
-    @Embedded val mission: MissionEntity,
-    @Relation(
-        parentColumn = "id",
-        entityColumn = "missionId"
-    )
-    val events: List<EventEntity>
+/** Fila de la tabla de historial con los conteos calculados en la consulta. */
+data class MissionRow(
+    val id: String,
+    val visitor: String,
+    val destination: String,
+    val status: String,
+    val startedAt: Long,
+    val endedAt: Long?,
+    val distanceM: Float,
+    val alertCount: Int,
+    val commandCount: Int,
+    val rejectedCount: Int
 )
