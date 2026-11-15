@@ -82,6 +82,9 @@ private fun AlertCard(alert: Alert, state: VigiaUiState, vm: VigiaViewModel) {
                 AlertType.BATTERY_LOW, AlertType.BATTERY_CRITICAL ->
                     if (state.availability(CommandType.GO_SAFE).enabled)
                         OrderButton(state, CommandType.GO_SAFE, "Ir a punto seguro", vm, ButtonKind.WARNING, mod)
+                    else if (state.telemetry.robotState != com.uade.vigia.domain.model.RobotState.IN_BASE &&
+                        state.availability(CommandType.RETURN_TO_BASE).enabled)
+                        OrderButton(state, CommandType.RETURN_TO_BASE, "Volver a la base", vm, ButtonKind.WARNING, mod)
                 AlertType.VISITOR_LAGGING -> {
                     VigiaButton("Seguir esperando", { vm.acknowledge(alert.id) }, mod, enabled = state.online)
                     OrderButton(state, CommandType.RESUME, "Reanudar", vm, modifier = mod)
@@ -89,8 +92,12 @@ private fun AlertCard(alert: Alert, state: VigiaUiState, vm: VigiaViewModel) {
                 }
                 AlertType.CROSSING_WAIT ->
                     OrderButton(state, CommandType.CONFIRM_CROSSING, "Cruce libre · continuar", vm, ButtonKind.PRIMARY, mod)
-                AlertType.TILT ->
+                // Incidente: el robot ya se detuvo; el guardia decide cómo seguir (Tabla IV del documento).
+                AlertType.TILT -> {
+                    OrderButton(state, CommandType.GO_SAFE, "Ir a punto seguro", vm, ButtonKind.WARNING, mod)
+                    OrderButton(state, CommandType.RESUME, "Reanudar · área despejada", vm, modifier = mod)
                     OrderButton(state, CommandType.CANCEL, "Cancelar escolta", vm, modifier = mod)
+                }
                 AlertType.COMMAND_REJECTED -> Unit
             }
             VigiaButton(

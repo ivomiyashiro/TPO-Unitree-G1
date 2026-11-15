@@ -62,6 +62,15 @@ El LED y los mensajes de voz que decide el recorrido se envían también al emul
 
 ---
 
+## 📑 Documentación de la entrega
+
+| Documento | Contenido |
+|---|---|
+| [`docs/arquitectura.md`](docs/arquitectura.md) | Diagramas de flujo de datos y de topología, responsabilidades por capa y pruebas. |
+| [`docs/contrato-mensajes.md`](docs/contrato-mensajes.md) | Ejemplos JSON del contrato propuesto: telemetría, órdenes, respuestas y eventos, y su traducción al emulador de la cátedra. |
+| [`docs/evidencias/`](docs/evidencias/README.md) | Capturas de los cinco escenarios de prueba. |
+| [Releases](../../releases) | APK instalable. |
+
 ## 🏗️ Arquitectura
 
 MVVM con capas de Clean Architecture. La UI no conoce de dónde vienen los datos: el simulador y un futuro cliente del emulador de la cátedra implementan la misma interfaz.

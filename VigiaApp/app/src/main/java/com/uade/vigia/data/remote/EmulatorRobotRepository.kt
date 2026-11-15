@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -98,6 +99,12 @@ class EmulatorRobotRepository(
             sim.telemetry.map { it.led }.distinctUntilChanged().collect { color ->
                 runCatching { api.led(color.toRgbBody()) }
             }
+        }
+        // El saludo automático en P1 se envía como LocoClient.WaveHand.
+        scope.launch {
+            sim.telemetry.map { it.busyAction }.distinctUntilChanged().drop(1)
+                .filter { it == com.uade.vigia.domain.model.BusyAction.GREETING }
+                .collect { runCatching { api.greeting() } }
         }
         scope.launch {
             sim.telemetry.map { it.lastTts }.filterNotNull().distinctUntilChanged().drop(1).collect { text ->
